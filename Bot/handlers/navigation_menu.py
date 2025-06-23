@@ -56,7 +56,6 @@ async def handle_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-
 async def handle_contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "ru")
 

@@ -3,6 +3,7 @@ from telegram import Update, KeyboardButton
 from telegram.ext import ContextTypes
 from .auth import require_token
 from ..keyboard import *
+from ..utils import *
 
 
 async def handle_personal_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -44,148 +45,103 @@ async def handle_personal_account(update: Update, context: ContextTypes.DEFAULT_
 async def handle_visits(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "ru")
     patient_id = context.user_data.get("user_id")
+    token = context.user_data.get("token")
 
-    async with httpx.AsyncClient() as client:
-        try:
-            token = context.user_data.get("token")
-            if not token:
-                await require_token(update, context)
-                return
-            headers = {"Authorization": f"Bearer {token}"}
+    if not token:
+        await require_token(update, context)
+        return
+
+    try:
+        async with httpx.AsyncClient() as client:
             response = await client.post(
-                url="http://localhost:5000/visits_count",
+                "http://localhost:5000/visits_count",
                 json={"patient_id": patient_id, "lang": lang},
-                headers=headers
+                headers={"Authorization": f"Bearer {token}"}
             )
 
-            if response.status_code == 401:
-                context.user_data.pop("token", None)
-                context.user_data.pop("user_id", None)
-                context.user_data.pop("user_info", None)
-                await update.message.reply_text(
-                    TEXTS["session_expired"][lang],
-                    reply_markup=keyboard_from_data(TEXTS["menu_main"])
-                )
-                return
+        data = await handle_api_response(response, context, update, lang)
+        if data is False:
+            return
 
-            if response.status_code == 200:
-                data = response.json()
-                if not data:
-                    await update.message.reply_text(
-                        TEXTS["no_visits"][lang],
-                        reply_markup=keyboard_from_data(TEXTS["back_menu"][lang])
-                    )
-                    return
+        if not data:
+            await update.message.reply_text(
+                TEXTS["no_visits"][lang],
+                reply_markup=keyboard_from_data(TEXTS["back_menu"][lang])
+            )
+            return
 
-                title = TEXTS["visit_count_title"][lang]
-                lines = []
+        lines = [TEXTS["visit_count_title"][lang]]
+        for v in data.values():
+            lines.append(f"- {v['name']}: {v['count']}")
+            for d in v["dates"]:
+                closing = d["closing"] or TEXTS["visit_still_open"][lang]
+                lines.append(f"  {d['incoming']} – {closing}")
 
-                for v in data.values():
-                    type_name = v["name"]
-                    count = v["count"]
-                    lines.append(f"- {type_name}: {count}")
-                    for d in v["dates"]:
-                        closing = d["closing"] or TEXTS["visit_still_open"][lang]
-                        lines.append(f"  {d['incoming']} – {closing}")
+        await update.message.reply_text(
+            "\n".join(lines),
+            reply_markup=keyboard_from_data(TEXTS["personal_menu"][lang])
+        )
 
-                reply_text = title + "\n" + "\n".join(lines)
-
-                await update.message.reply_text(
-                    reply_text,
-                    reply_markup=keyboard_from_data(TEXTS["personal_menu"][lang]),
-                )
-            else:
-                await update.message.reply_text(TEXTS["no_visits"][lang])
-        except Exception as e:
-            await update.message.reply_text(TEXTS["no_visits"][lang])
-            print("Ошибка:", e)
+    except Exception as e:
+        print("Ошибка:", e)
+        await update.message.reply_text(TEXTS["api_response_error"][lang])
 
 
 async def handle_discharges(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "ru")
     patient_id = context.user_data.get("user_id")
+    token = context.user_data.get("token")
 
-    if not patient_id:
-        await update.message.reply_text(TEXTS["missing_patient_id"][lang])
+    if not token:
+        await require_token(update, context)
         return
 
-    async with httpx.AsyncClient() as client:
-        try:
-            token = context.user_data.get("token")
-            if not token:
-                await require_token(update, context)
-                return
-
-            headers = {"Authorization": f"Bearer {token}"}
+    try:
+        async with httpx.AsyncClient() as client:
             response = await client.post(
-                url="http://localhost:5000/visits_count",
+                "http://localhost:5000/visits_count",
                 json={"patient_id": patient_id, "lang": lang},
-                headers=headers
+                headers={"Authorization": f"Bearer {token}"}
             )
-            if response.status_code == 401:
-                context.user_data.pop("token", None)
-                context.user_data.pop("user_id", None)
-                context.user_data.pop("user_info", None)
 
-                await update.message.reply_text(
-                    TEXTS["session_expired"][lang],
-                    reply_markup=keyboard_from_data(TEXTS["menu_main"][lang])
-                )
-                return
+        data = await handle_api_response(response, context, update, lang)
+        if data is False:
+            return
 
-            if response.status_code == 200:
-                data = response.json()
-                if not data:
-                    await update.message.reply_text(
-                        TEXTS["no_discharges"][lang],
-                        reply_markup=keyboard_from_data(TEXTS["personal_menu"][lang])
-                    )
-                    return
+        if not data or not any(any(d["closing"] for d in v["dates"]) for v in data.values()):
+            await update.message.reply_text(
+                TEXTS["no_discharges"][lang],
+                reply_markup=keyboard_from_data(TEXTS["personal_menu"][lang])
+            )
+            return
 
-                print(">>> DEBUG: data from visits_count", data)
-                has_closed_visits = any(
-                    any(d["closing"] for d in v["dates"]) for v in data.values()
-                )
-                if not has_closed_visits:
-                    await update.message.reply_text(
-                        TEXTS["no_discharges"][lang],
-                        reply_markup=keyboard_from_data(TEXTS["personal_menu"][lang])
-                    )
-                    return
+        context.user_data["menu_state"] = "after_discharge"
+        context.user_data["visits_data"] = data
+        event_buttons = [[v["name"]] for v in data.values()]
+        event_buttons.append([TEXTS["back_btn"][lang]])
+        context.user_data["discharge_types_menu"] = event_buttons
 
-                context.user_data["menu_state"] = "after_discharge"
-                context.user_data["visits_data"] = data
-                event_buttons = [[v["name"]] for v in data.values()]
-                event_buttons.append([TEXTS["back_btn"][lang]])
-                context.user_data["discharge_types_menu"] = event_buttons
+        await update.message.reply_text(
+            TEXTS["personal_data_prompt"][lang],
+            reply_markup=keyboard_from_data(event_buttons)
+        )
 
-                await update.message.reply_text(
-                    TEXTS["personal_data_prompt"][lang],
-                    reply_markup=keyboard_from_data(event_buttons)
-                )
-            else:
-                await update.message.reply_text(TEXTS["no_visits"][lang])
-        except Exception as e:
-            print("Ошибка:", e)
-            await update.message.reply_text(TEXTS["no_visits"][lang])
+    except Exception as e:
+        print("Ошибка:", e)
+        await update.message.reply_text(TEXTS["api_response_error"][lang])
 
 
 async def handle_discharge_types(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "ru")
-    text = update.message.text
-
-    selected_type_name = text
+    selected_type_name = update.message.text
     visits_data = context.user_data.get("visits_data")
 
     if not visits_data:
         await update.message.reply_text(TEXTS["no_visits"][lang])
         return
 
-    matching_type = None
-    for event_id, event_info in visits_data.items():
-        if event_info["name"] == selected_type_name:
-            matching_type = event_info
-            break
+    matching_type = next((v for v in visits_data.values() if v["name"] == selected_type_name), None)
+
     if not matching_type:
         await update.message.reply_text(TEXTS["no_visits"][lang])
         return
@@ -193,7 +149,8 @@ async def handle_discharge_types(update: Update, context: ContextTypes.DEFAULT_T
     context.user_data["selected_event_type"] = selected_type_name
     context.user_data["menu_state"] = "after_discharge_dates"
     context.user_data["current_visits_list"] = matching_type["dates"]
-    date_buttons = [[entry["incoming"]] for entry in matching_type["dates"]]
+
+    date_buttons = [[d["incoming"]] for d in matching_type["dates"]]
     date_buttons.append([TEXTS["back_btn"][lang]])
 
     await update.message.reply_text(
@@ -204,52 +161,47 @@ async def handle_discharge_types(update: Update, context: ContextTypes.DEFAULT_T
 
 async def handle_discharge_dates(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "ru")
-    text = update.message.text
-
-    selected_date = text
+    selected_date = update.message.text
     visits = context.user_data.get("current_visits_list", [])
-    visit_id = None
+    visit_id = next((v["visit_id"] for v in visits if v["incoming"] == selected_date), None)
 
-    for visit in visits:
-        if visit["incoming"] == selected_date:
-            visit_id = visit["visit_id"]
-            break
     if not visit_id:
         await update.message.reply_text(TEXTS["no_visits"][lang])
         return
 
     event_type = context.user_data.get("selected_event_type", "")
     kind = "extract" if "госпитализация" in event_type.lower() else "conclusion"
-
     token = context.user_data.get("token")
+
     if not token:
         await update.message.reply_text(TEXTS["unauthorized"][lang])
         return
+
     try:
         async with httpx.AsyncClient(verify=False) as client:
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/pdf"
-            }
             response = await client.get(
                 f"http://127.0.0.1:5000/download_pdf/{visit_id}/{kind}",
-                headers=headers,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/pdf"
+                },
                 timeout=20.0
             )
-            if response.status_code == 200:
-                pdf_file = io.BytesIO(response.content)
-                pdf_file.name = f"{kind}_{visit_id}.pdf"
 
-                await update.message.reply_document(
-                    document=pdf_file,
-                    caption=TEXTS["file_sent"][lang]
-                )
-            else:
-                error_msg = response.json().get("error", "Unknown error")
-                print(f"API Error: {error_msg}")
-                await update.message.reply_text(TEXTS["file_failed"][lang])
+        if response.status_code == 200:
+            pdf_file = io.BytesIO(response.content)
+            pdf_file.name = f"{kind}_{visit_id}.pdf"
+
+            await update.message.reply_document(
+                document=pdf_file,
+                caption=TEXTS["file_sent"][lang]
+            )
+        else:
+            print(f"API Error: {response.json().get('error', 'Unknown error')}")
+            await update.message.reply_text(TEXTS["file_failed"][lang])
+
     except httpx.ReadTimeout:
         await update.message.reply_text("Время ожидания истекло. Попробуйте позже.")
     except Exception as e:
-        print(f"Download error: {str(e)}")
+        print("Download error:", e)
         await update.message.reply_text(TEXTS["file_failed"][lang])

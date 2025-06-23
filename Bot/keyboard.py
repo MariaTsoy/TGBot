@@ -12,3 +12,9 @@ def keyboard_single_from_menu(menu_key, lang, row_index=-1):
         [TEXTS[menu_key][lang][row_index]],
         resize_keyboard=True
     )
+
+def build_main_menu(lang):
+    return ReplyKeyboardMarkup(
+        keyboard=TEXTS["menu_main"][lang],
+        resize_keyboard=True
+    )
