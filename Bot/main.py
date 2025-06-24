@@ -1,20 +1,17 @@
 import nest_asyncio
 import asyncio
-
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    filters,
-)
-
-from Bot.handlers.auth import *
 from Bot.handlers.start import *
 from startup import *
 from Bot.handlers.navigation_menu import *
 from Bot.handlers.navigation_personal_data import *
 from Bot.handlers.navigation_hospitalization import *
 from Bot.handlers.navigation_schedule import *
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
 
 setup()
 nest_asyncio.apply()
@@ -24,14 +21,25 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     is_authenticated = "user_info" in context.user_data
 
+    print("➡️ menu_handler triggered, text =", text)
+    print("auth_step =", context.user_data.get("auth_step"))
+
     if context.user_data.get("auth_step") == "awaiting_iin":
+        if text == TEXTS["main_menu_btn"][lang]:
+            context.user_data.pop("auth_step", None)
+            context.user_data.pop("phone_for_auth", None)
+            await handle_menu(update, context)
+            return
+
         iin = update.message.text.strip()
         phone = context.user_data.get("phone_for_auth")
         telegram_id = update.effective_user.id
 
         response = await check_user_by_phone_and_iin(phone, iin, telegram_id)
 
-        if response["found"]:
+        if not response:
+            await update.message.reply_text(TEXTS["api_error"][lang])
+        elif response.get("found"):
             data = response["data"]
             token = response.get("token")
 
@@ -40,7 +48,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["user_id"] = data.get("id")
             context.user_data["was_authenticated_once"] = True
             context.user_data.pop("auth_step", None)
-            context.user_data.pop("phone_for_auth", None)  # очистим
+            context.user_data.pop("phone_for_auth", None)
 
             full_name = f'{data["ptn_lname"]} {data["ptn_gname"]} {data["ptn_mname"]}'.strip()
             await update.message.reply_text(
@@ -52,9 +60,21 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=keyboard_from_data(TEXTS["menu_after_login"][lang])
             )
         else:
-            await update.message.reply_text(TEXTS["not_found"][lang].format(phone=phone))
-            context.user_data.pop("auth_step", None)
-            context.user_data.pop("phone_for_auth", None)
+            error = response.get("error")
+            if error == "wrong_iin":
+                await update.message.reply_text(TEXTS["wrong_iin"][lang])
+            elif error == "not_found":
+                await update.message.reply_text(TEXTS["not_found"][lang].format(phone=phone))
+            else:
+                await update.message.reply_text(TEXTS["not_found"][lang].format(phone=phone))
+
+            context.user_data.clear()
+
+            contact_btn = KeyboardButton(TEXTS["auth_button"][lang], request_contact=True)
+            menu_btn = KeyboardButton(TEXTS["main_menu_btn"][lang])
+            keyboard = ReplyKeyboardMarkup([[contact_btn], [menu_btn]], resize_keyboard=True)
+
+            await update.message.reply_text(TEXTS["auth_prompt"][lang], reply_markup=keyboard)
 
         return
 
@@ -68,6 +88,8 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_back(update, context)
 
     elif text == TEXTS["main_menu_btn"][lang]:
+        context.user_data.pop("auth_step", None)
+        context.user_data.pop("phone_for_auth", None)
         await handle_menu(update, context)
 
     elif text == TEXTS["menu_main"][lang][0][0]:

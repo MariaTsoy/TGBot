@@ -234,6 +234,21 @@ TEXTS = {
         "kz": "{phone} нөмірі бойынша пайдаланушы табылмады.",
         "en": "No user found with the number {phone}."
     },
+    "wrong_contact": {
+        "ru": "Пожалуйста, отправьте свой номер телефона, используя кнопку. Авторизация возможна только через ваш Telegram-номер.",
+        "kz": "...",
+        "en": "Please share your phone number using the button. Authorization is only possible via your own Telegram-linked number."
+    },
+    "only_contact_allowed": {
+        "ru": "Пожалуйста, используйте кнопку, чтобы отправить номер телефона.",
+        "kz": "...",
+        "en": "Please use the button to send your phone number."
+    },
+    "wrong_iin": {
+        "ru": "ИИН неверный. Попробуйте ещё раз.",
+        "kz": "...",
+        "en": "Incorrect IIN. Please try again."
+    },
     "api_connect_error": {
         "ru": "Ошибка при подключении к API.",
         "kz": "API-ге қосылу қатесі.",

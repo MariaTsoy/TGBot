@@ -1,9 +1,8 @@
-import httpx, io
-from telegram import Update, KeyboardButton
-from telegram.ext import ContextTypes
-from .auth import require_token
-from ..keyboard import *
+import io
+from .auth import *
+from .start import *
 from ..utils import *
+from telegram import ReplyKeyboardMarkup, KeyboardButton
 
 
 async def handle_personal_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -17,29 +16,43 @@ async def handle_personal_data(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def handle_personal_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "ru")
-    is_authenticated = "user_info" in context.user_data
 
-    if is_authenticated:
-        full_name = f'{context.user_data["user_info"]["ptn_lname"]} ' \
-                    f'{context.user_data["user_info"]["ptn_gname"]} ' \
-                    f'{context.user_data["user_info"]["ptn_mname"]}'.strip()
-        phone = context.user_data["user_info"].get("ptn_mobile", "📞")
-        main_menu = TEXTS["main_menu_prompt"][lang]
+    if "token" not in context.user_data:
+        auto_login_success = await try_auto_login(update, context)
+        if not auto_login_success:
+            contact_btn = KeyboardButton(TEXTS["auth_button"][lang], request_contact=True)
+            menu_btn = KeyboardButton(TEXTS["main_menu_btn"][lang])
+            keyboard = ReplyKeyboardMarkup([[contact_btn], [menu_btn]], resize_keyboard=True, one_time_keyboard=True)
 
-        if context.user_data.get("was_authenticated_once"):
-            reply_text = TEXTS["auth_success_repeat"][lang].format(full_name=full_name, main_menu=main_menu)
-        else:
-            reply_text = TEXTS["auth_success_first"][lang].format(phone=phone, full_name=full_name,
-                                                                  main_menu=main_menu)
-            context.user_data["was_authenticated_once"] = True
-        await update.message.reply_text(
-            reply_text,
-            reply_markup=keyboard_from_data(TEXTS["menu_after_login"][lang]),
-        )
+            await update.message.reply_text(TEXTS["auth_prompt"][lang], reply_markup=keyboard)
+            return
+
+    token_valid = await verify_token(context)
+    if not token_valid:
+        context.user_data.clear()
+
+        contact_btn = KeyboardButton(TEXTS["auth_button"][lang], request_contact=True)
+        menu_btn = KeyboardButton(TEXTS["main_menu_btn"][lang])
+        keyboard = ReplyKeyboardMarkup([[contact_btn], [menu_btn]], resize_keyboard=True, one_time_keyboard=True)
+
+        await update.message.reply_text(TEXTS["session_expired"][lang], reply_markup=keyboard)
+        return
+
+    user_info = context.user_data.get("user_info", {})
+    full_name = f'{user_info.get("ptn_lname", "")} {user_info.get("ptn_gname", "")} {user_info.get("ptn_mname", "")}'.strip()
+    phone = user_info.get("ptn_mobile", "📞")
+    main_menu = TEXTS["main_menu_prompt"][lang]
+
+    if context.user_data.get("was_authenticated_once"):
+        reply_text = TEXTS["auth_success_repeat"][lang].format(full_name=full_name, main_menu=main_menu)
     else:
-        contact_button = KeyboardButton(TEXTS["auth_button"][lang], request_contact=True)
-        keyboard = ReplyKeyboardMarkup([[contact_button]], resize_keyboard=True, one_time_keyboard=True)
-        await update.message.reply_text(TEXTS["auth_prompt"][lang], reply_markup=keyboard)
+        reply_text = TEXTS["auth_success_first"][lang].format(phone=phone, full_name=full_name, main_menu=main_menu)
+        context.user_data["was_authenticated_once"] = True
+
+    await update.message.reply_text(
+        reply_text,
+        reply_markup=keyboard_from_data(TEXTS["menu_after_login"][lang])
+    )
 
 
 async def handle_visits(update: Update, context: ContextTypes.DEFAULT_TYPE):
