@@ -17,8 +17,10 @@ if (!$phone) {
 
 $conn = connect_db();
 
+// Убираем все лишние символы
 $cleaned_phone = preg_replace("/[\s\-\+\(\)]/", "", $phone);
 
+// Пытаемся найти по номеру и ИИН
 $stmt = $conn->prepare("
     SELECT id, ptn_lname, ptn_gname, ptn_mname, ptn_preflang, ptn_mobile
     FROM hc_patients
@@ -28,6 +30,7 @@ $stmt = $conn->prepare("
 $stmt->bind_param("ss", $cleaned_phone, $iin);
 $stmt->execute();
 $result = $stmt->get_result()->fetch_assoc();
+$stmt->close();
 
 if ($result) {
     $token_data = generate_token($result["id"], $telegram_id);
@@ -37,8 +40,21 @@ if ($result) {
         "token" => $token_data["token"]
     ]);
 } else {
-    echo json_encode(["found" => false]);
+    // Теперь проверяем — существует ли такой номер, но с другим ИИН
+    $stmt_phone = $conn->prepare("
+        SELECT id FROM hc_patients
+        WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ptn_mobile, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = ?
+    ");
+    $stmt_phone->bind_param("s", $cleaned_phone);
+    $stmt_phone->execute();
+    $phone_check = $stmt_phone->get_result()->fetch_assoc();
+    $stmt_phone->close();
+
+    if ($phone_check) {
+        echo json_encode(["found" => false, "error" => "wrong_iin"]);
+    } else {
+        echo json_encode(["found" => false, "error" => "not_found"]);
+    }
 }
 
-$stmt->close();
 $conn->close();

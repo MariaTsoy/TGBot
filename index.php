@@ -3,6 +3,7 @@ $request_uri = parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH);
 $method = $_SERVER["REQUEST_METHOD"];
 
 $routes = [
+    "/check_telegram" => "endpoints/check_telegram.php",
     "/check_user" => "endpoints/check_user.php",
     "/visits_count" => "endpoints/visits_count.php",
     "/current_hospitalization" => "endpoints/current_hospitalization.php",
