@@ -19,48 +19,28 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif phone.startswith("7"):
         phone = "+7" + phone[1:]
 
-    response = await check_user_by_phone(phone)
+    context.user_data["phone_for_auth"] = phone
+    context.user_data["auth_step"] = "awaiting_iin"
 
-    if response["found"]:
-        data = response["data"]
-        token = response.get("token")
-
-        context.user_data["user_info"] = data
-        context.user_data["token"] = token
-        context.user_data["user_id"] = data.get("id")
-        context.user_data["was_authenticated_once"] = True
-
-        full_name = f'{data["ptn_lname"]} {data["ptn_gname"]} {data["ptn_mname"]}'.strip()
-        context.user_data["full_name"] = full_name
-        context.user_data["main_menu_prompt"] = TEXTS["main_menu_prompt"][lang]
-
-        await update.message.reply_text(
-            TEXTS["auth_success_first"][lang].format(
-                phone=phone,
-                full_name=full_name,
-                main_menu=TEXTS["main_menu_prompt"][lang]
-            ),
-            reply_markup=keyboard_from_data(TEXTS["menu_after_login"][lang])
-        )
-    else:
-        await update.message.reply_text(TEXTS["not_found"][lang].format(phone=phone))
+    await update.message.reply_text(TEXTS["enter_iin_prompt"][lang])
 
 
-async def check_user_by_phone(phone_number):
+async def check_user_by_phone_and_iin(phone, iin, telegram_id):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
                 url="http://localhost:5000/check_user",
-                json={"phone": phone_number}
+                json={
+                    "phone": phone,
+                    "iin": iin,
+                    "telegram_id": telegram_id
+                }
             )
             if response.status_code == 200:
                 return response.json()
-            else:
-                print(f"API status: {response.status_code}")
-                return {"found": False}
-        except httpx.RequestError as e:
-            print(f"API request error: {e}")
-            return {"found": False}
+        except Exception as e:
+            print("Ошибка API:", e)
+    return {"found": False}
 
 
 async def require_token(update, context):

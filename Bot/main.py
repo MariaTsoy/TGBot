@@ -24,6 +24,40 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     is_authenticated = "user_info" in context.user_data
 
+    if context.user_data.get("auth_step") == "awaiting_iin":
+        iin = update.message.text.strip()
+        phone = context.user_data.get("phone_for_auth")
+        telegram_id = update.effective_user.id
+
+        response = await check_user_by_phone_and_iin(phone, iin, telegram_id)
+
+        if response["found"]:
+            data = response["data"]
+            token = response.get("token")
+
+            context.user_data["user_info"] = data
+            context.user_data["token"] = token
+            context.user_data["user_id"] = data.get("id")
+            context.user_data["was_authenticated_once"] = True
+            context.user_data.pop("auth_step", None)
+            context.user_data.pop("phone_for_auth", None)  # очистим
+
+            full_name = f'{data["ptn_lname"]} {data["ptn_gname"]} {data["ptn_mname"]}'.strip()
+            await update.message.reply_text(
+                TEXTS["auth_success_first"][lang].format(
+                    phone=phone,
+                    full_name=full_name,
+                    main_menu=TEXTS["main_menu_prompt"][lang]
+                ),
+                reply_markup=keyboard_from_data(TEXTS["menu_after_login"][lang])
+            )
+        else:
+            await update.message.reply_text(TEXTS["not_found"][lang].format(phone=phone))
+            context.user_data.pop("auth_step", None)
+            context.user_data.pop("phone_for_auth", None)
+
+        return
+
     if not text:
         return
 
@@ -81,11 +115,11 @@ async def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Regex("^(Русский|Қазақша|English).*$"), set_language))
+    app.add_handler(MessageHandler(filters.Regex(".*"), menu_handler))
     app.add_handler(MessageHandler(
         filters.CONTACT | filters.Regex(r"[\d\+\-\(\)\s]{10,}"),
         handle_phone
     ))
-    app.add_handler(MessageHandler(filters.Regex(".*"), menu_handler))
 
     print("Bot's running.")
     await app.run_polling()
