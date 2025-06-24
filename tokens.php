@@ -12,16 +12,16 @@ function save_tokens($tokens) {
     file_put_contents(TOKEN_FILE, json_encode($tokens, JSON_PRETTY_PRINT));
 }
 
-function generate_token($patient_id) {
-    $tokens = load_tokens();
-    $token = bin2hex(random_bytes(16));
-    $expires_at = (new DateTime())->modify('+30 minutes')->format(DateTime::ATOM);
+function generate_token($patient_id, $telegram_id = null) {
+    $tokens = json_decode(file_get_contents(__DIR__ . '/tokens.json'), true);
+    $token = bin2hex(random_bytes(32));
     $tokens[$token] = [
         "patient_id" => $patient_id,
-        "expires_at" => $expires_at
+        "created_at" => time(),
+        "telegram_id" => $telegram_id
     ];
-    save_tokens($tokens);
-    return ["token" => $token, "expires_at" => $expires_at];
+    file_put_contents(__DIR__ . '/tokens.json', json_encode($tokens, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    return ["token" => $token];
 }
 
 function is_token_valid($token, $patient_id) {
@@ -30,10 +30,6 @@ function is_token_valid($token, $patient_id) {
 
     $data = $tokens[$token];
     if ((int)$data["patient_id"] !== (int)$patient_id) return false;
-
-    $now = new DateTime();
-    $expiry = DateTime::createFromFormat(DateTime::ATOM, $data["expires_at"]);
-    if ($expiry < $now) return false;
 
     return true;
 }
