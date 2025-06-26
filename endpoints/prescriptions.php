@@ -43,7 +43,6 @@ $result = $stmt->get_result();
 
 $rows = [];
 while ($row = $result->fetch_assoc()) {
-    // Преобразуем ass_time в строку (если это время)
     if ($row["ass_time"] instanceof DateTime || $row["ass_time"] instanceof \DateInterval) {
         $row["ass_time"] = (string)$row["ass_time"];
     }

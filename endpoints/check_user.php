@@ -16,11 +16,8 @@ if (!$phone) {
 }
 
 $conn = connect_db();
-
-// Убираем все лишние символы
 $cleaned_phone = preg_replace("/[\s\-\+\(\)]/", "", $phone);
 
-// Пытаемся найти по номеру и ИИН
 $stmt = $conn->prepare("
     SELECT id, ptn_lname, ptn_gname, ptn_mname, ptn_preflang, ptn_mobile
     FROM hc_patients
@@ -40,7 +37,6 @@ if ($result) {
         "token" => $token_data["token"]
     ]);
 } else {
-    // Теперь проверяем — существует ли такой номер, но с другим ИИН
     $stmt_phone = $conn->prepare("
         SELECT id FROM hc_patients
         WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ptn_mobile, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '') = ?

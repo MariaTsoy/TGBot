@@ -49,18 +49,15 @@ $result = $stmt->get_result();
 
 $records = [];
 while ($row = $result->fetch_assoc()) {
-    // Time
     if (isset($row["schp_time"])) {
         $seconds = is_numeric($row["schp_time"]) ? (int)$row["schp_time"] : strtotime($row["schp_time"]) % 86400;
         $row["schp_time"] = sprintf("%02d:%02d", $seconds / 3600, ($seconds % 3600) / 60);
     }
 
-    // Date
     if (isset($row["schp_date"])) {
         $row["schp_date"] = date("d.m.Y", strtotime($row["schp_date"]));
     }
 
-    // Doctor's name
     $row["doctor_name"] = implode(" ", array_filter([$row["usr_lname"], $row["usr_gname"], $row["usr_mname"]])) ?: "—";
 
     $records[] = $row;
