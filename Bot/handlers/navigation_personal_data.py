@@ -2,6 +2,7 @@ import io
 from .auth import *
 from .start import *
 from ..utils import *
+from ..constants import *
 from telegram import ReplyKeyboardMarkup, KeyboardButton
 
 
@@ -22,7 +23,8 @@ async def handle_personal_account(update: Update, context: ContextTypes.DEFAULT_
         if not auto_login_success:
             contact_btn = KeyboardButton(TEXTS["auth_button"][lang], request_contact=True)
             menu_btn = KeyboardButton(TEXTS["main_menu_btn"][lang])
-            keyboard = ReplyKeyboardMarkup([[contact_btn], [menu_btn]], resize_keyboard=True, one_time_keyboard=True)
+            keyboard = ReplyKeyboardMarkup([[contact_btn], [menu_btn]],
+                                           resize_keyboard=True, one_time_keyboard=True)
 
             await update.message.reply_text(TEXTS["auth_prompt"][lang], reply_markup=keyboard)
             return
@@ -33,13 +35,15 @@ async def handle_personal_account(update: Update, context: ContextTypes.DEFAULT_
 
         contact_btn = KeyboardButton(TEXTS["auth_button"][lang], request_contact=True)
         menu_btn = KeyboardButton(TEXTS["main_menu_btn"][lang])
-        keyboard = ReplyKeyboardMarkup([[contact_btn], [menu_btn]], resize_keyboard=True, one_time_keyboard=True)
+        keyboard = ReplyKeyboardMarkup([[contact_btn], [menu_btn]],
+                                       resize_keyboard=True, one_time_keyboard=True)
 
         await update.message.reply_text(TEXTS["session_expired"][lang], reply_markup=keyboard)
         return
 
     user_info = context.user_data.get("user_info", {})
-    full_name = f'{user_info.get("ptn_lname", "")} {user_info.get("ptn_gname", "")} {user_info.get("ptn_mname", "")}'.strip()
+    full_name = (f'{user_info.get("ptn_lname", "")} '
+                 f'{user_info.get("ptn_gname", "")} {user_info.get("ptn_mname", "")}').strip()
     phone = user_info.get("ptn_mobile", "📞")
     main_menu = TEXTS["main_menu_prompt"][lang]
 
@@ -67,7 +71,7 @@ async def handle_visits(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/visits_count",
+                API_VISITS_COUNT,
                 json={"patient_id": patient_id, "lang": lang},
                 headers={"Authorization": f"Bearer {token}"}
             )
@@ -112,7 +116,7 @@ async def handle_discharges(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/visits_count",
+                API_VISITS_COUNT,
                 json={"patient_id": patient_id, "lang": lang},
                 headers={"Authorization": f"Bearer {token}"}
             )
@@ -193,7 +197,7 @@ async def handle_discharge_dates(update: Update, context: ContextTypes.DEFAULT_T
     try:
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.get(
-                f"http://127.0.0.1:5000/download_pdf/{visit_id}/{kind}",
+                f"{API_DOWNLOAD_PDF}/{visit_id}/{kind}",
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Accept": "application/pdf"

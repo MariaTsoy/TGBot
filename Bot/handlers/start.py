@@ -1,7 +1,7 @@
 import httpx
 from telegram import Update
 from telegram.ext import ContextTypes
-from ..constants import LANG_KEYBOARD, LANG_CODES
+from ..constants import *
 from ..texts import TEXTS
 from ..keyboard import keyboard
 
@@ -25,11 +25,10 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def try_auto_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
-    lang = context.user_data.get("lang", "ru")
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post("http://localhost:5000/check_telegram", json={"telegram_id": telegram_id})
+            response = await client.post(API_CHECK_TELEGRAM, json={"telegram_id": telegram_id})
             if response.status_code == 200:
                 data = response.json()
                 if data["found"]:

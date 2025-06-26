@@ -1,6 +1,5 @@
-from telegram import ReplyKeyboardMarkup
-from texts import TEXTS
 from keyboard import *
+
 
 async def handle_api_response(response, context, update, lang):
     if response.status_code == 401:

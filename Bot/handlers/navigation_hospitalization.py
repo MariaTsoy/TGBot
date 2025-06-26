@@ -1,9 +1,9 @@
-import httpx, traceback
+import httpx
 from telegram import Update
 from telegram.ext import ContextTypes
 from .auth import require_token
-from ..keyboard import *
 from ..utils import *
+from ..constants import *
 
 
 async def handle_current_hospitalization(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -18,7 +18,7 @@ async def handle_current_hospitalization(update: Update, context: ContextTypes.D
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/current_hospitalization",
+                API_CURRENT_HOSPITALIZATION,
                 json={"patient_id": patient_id},
                 headers={"Authorization": f"Bearer {token}"}
             )
@@ -74,7 +74,7 @@ async def handle_prescriptions_day(update: Update, context: ContextTypes.DEFAULT
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/prescriptions",
+                API_PRESCRIPTIONS,
                 json={"visit_id": visit_id, "patient_id": patient_id, "date": date_value},
                 headers={"Authorization": f"Bearer {token}"}
             )
@@ -131,7 +131,7 @@ async def handle_vitals_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://localhost:5000/vitals",
+                API_VITALS,
                 json={"visit_id": visit_id, "date": date_value, "patient_id": patient_id},
                 headers={"Authorization": f"Bearer {token}"}
             )

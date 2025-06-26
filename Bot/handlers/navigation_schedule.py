@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from ..keyboard import *
+from ..constants import *
 import httpx
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -14,7 +15,7 @@ async def handle_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
         async with httpx.AsyncClient() as client:
             headers = {"Authorization": f"Bearer {token}"}
             response = await client.post(
-                "http://localhost:5000/schedule",
+                API_SCHEDULE,
                 json={"patient_id": patient_id, "lang": lang},
                 headers=headers
             )
@@ -33,7 +34,8 @@ async def handle_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 TEXTS["no_schedule"][lang],
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton(TEXTS["make_appointment_btn"][lang], url="https://hemcenter.kz/onlineorder/")]
+                    [InlineKeyboardButton(TEXTS["make_appointment_btn"][lang],
+                                          url="https://hemcenter.kz/onlineorder/")]
                 ])
             )
             return
@@ -51,7 +53,8 @@ async def handle_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "\n".join(lines),
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(TEXTS["make_appointment_btn"][lang], url="https://hemcenter.kz/onlineorder/")]
+                [InlineKeyboardButton(TEXTS["make_appointment_btn"][lang],
+                                      url="https://hemcenter.kz/onlineorder/")]
             ])
         )
 
